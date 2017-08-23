@@ -49,6 +49,12 @@ def safe_extract(archive, password, verbose = False):
 		# Print 'raw' unrar output if verbose is set
 		verboseprint('unrar: "%s"' % line)
 
+		# Check if password was correct
+		if re.match(r'^\s*The\s+specified\s+password\s+is\s+incorrect\.\s*', line):
+			print('ERROR: Wrong password! Aborting...')
+			process.terminate()
+			sys.exit(1)
+
 		# Get current archive, unrar output should look like:
 		# Extracting from <file>
 		# if current archive switches, the old one can be deleted after the current file is finished
