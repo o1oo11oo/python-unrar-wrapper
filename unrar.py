@@ -28,6 +28,8 @@ def safe_extract(archive, password, verbose = False):
 	else:
 		command = ['unrar', 'x', '-p' + password, archive]
 
+	verboseprint('unrar command: ' + str(command))
+
 	# Call unrar binary and redirect stderr to stdout for error checking
 	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -50,7 +52,7 @@ def safe_extract(archive, password, verbose = False):
 		verboseprint('unrar: "%s"' % line)
 
 		# Check if password was correct
-		if re.match(r'^\s*The\s+specified\s+password\s+is\s+incorrect\.\s*', line):
+		if re.match(r'^.*Corrupt\s+file\s+or\s+wrong\s+password\.\s*$', line) or re.match(r'^\s*The\s+specified\s+password\s+is\s+incorrect\.\s*', line):
 			print('ERROR: Wrong password! Aborting...')
 			process.terminate()
 			sys.exit(1)
