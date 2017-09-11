@@ -13,7 +13,7 @@ def _get_regex_group(pattern, string, group = 1):
 	else:
 		return matches.group(group)
 
-def safe_extract(archive, password, verbose = False):
+def extract(archive, password, verbose = False, unsafe = False):
 	finished_archives = []
 	current_archive = None
 	current_file = None
@@ -33,7 +33,7 @@ def safe_extract(archive, password, verbose = False):
 	# Call unrar binary and redirect stderr to stdout for error checking
 	process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
-	# Iterate over unrar output to get current/finisdhed files and archives
+	# Iterate over unrar output to get current/finished files and archives
 	for raw_line in iter(process.stdout.readline, b''):
 		line = raw_line.decode(sys.stdout.encoding).strip()
 
@@ -60,13 +60,21 @@ def safe_extract(archive, password, verbose = False):
 		# Get current archive, unrar output should look like:
 		# Extracting from <file>
 		# if current archive switches, the old one can be deleted after the current file is finished
+		# if unsafe is set it will be deleted immediately
 		current_archive_match = _get_regex_group(r'^\s*Extracting\s+from\s+(.*?)$', line)
 		if current_archive_match is not None and current_archive_match != current_archive:
-			if current_archive is not None:
-				finished_archives.append(current_archive)
+			if unsafe:
+				if current_archive is not None:
+					print('Extracting from {}, deleting {}'.format(current_archive_match, current_archive))
+					os.remove(current_archive)
+				else:
+					print('Extracting from {}'.format(current_archive_match))
+			else:
+				if current_archive is not None:
+					finished_archives.append(current_archive)
+				print('Extracting from {}'.format(current_archive))
+				verboseprint('Finished parts: {}'.format(', '.join(str(p) for p in finished_archives)))
 			current_archive = current_archive_match
-			print('Extracting from {}'.format(current_archive))
-			verboseprint('Finished parts: {}'.format(', '.join(str(p) for p in finished_archives)))
 
 		# Get current_file, unrar output should look like:
 		# Extracting|...  <file>   n%
@@ -79,8 +87,9 @@ def safe_extract(archive, password, verbose = False):
 		# Get finished files, unrar output should look like:
 		# Extracting|...  <file>  OK
 		# if there are elements in finished_archives they can be deleted now
+		# can be ignored in unsafe mode
 		finished_file_match = _get_regex_group(r'^\s*(?:Extracting|\.+)+\s+(.*?)(?:(?:\s|[\b])+\d+%)*(?:\s|[\b])*OK\s*$', line)
-		if finished_file_match is not None:
+		if not unsafe and finished_file_match is not None:
 			finished_file = finished_file_match
 			print('Finished extracting {}'.format(finished_file))
 			if finished_archives:
@@ -103,10 +112,10 @@ if __name__ == "__main__":
 
 	parser = argparse.ArgumentParser(description='Extract multipart rar archives while deleting finished parts to save disk space')
 	parser.add_argument('-p', '--password', dest='password', help='password for extraction')
-	#parser.add_argument('--unsafe', help='delete finished archives immediately, instead of waiting for the current file to be finished', action='store_true')
+	parser.add_argument('-u', '--unsafe', help='delete finished archives immediately, instead of waiting for the current file to be finished', action='store_true')
 	parser.add_argument('-v', '--verbose', help='increase output verbosity', action='store_true')
 	parser.add_argument('archive', help='Archive filepath')
 	args = parser.parse_args()
 
 	# Call main function
-	safe_extract(args.archive, args.password, args.verbose)
+	extract(args.archive, args.password, args.verbose, args.unsafe)
